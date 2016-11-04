@@ -22,17 +22,17 @@ $st = new tosca_service_template();
 
 		$ip = new tosca_parameter('integer');
 			$ip->description('Example of input parameter');
-			$ip->keys(array('value' => 4, 'required' => false, 'default' => 2, 'status' => 'my status', 'constraints' => [operator::in_range(1,4)]));
+			$ip->keys(array('value' => 4, 'required' => false, 'default' => 2, 'status' => 'my status', 'constraints' => [operator::in_range(1,4), operator::equal(2)]));
 		$tt->inputs(array('number_of_cpu' => $ip->get()));
 		
 		$VDU1 = new tosca_node_template('tosca.nodes.nfv.VDU');
 			$VDU1->description('Example of node template');
 			$VDU1->properties(array('component_version' => 'version 0.1', 'admin_credential' => 'my credential'));
 			$VDU1->attributes(array('tosca_id' => '0003', 'tosca_name' => 'vdu'));
-			$VDU1->capabilities(array('high_availability' => 'YES', 'virtualbinding' => 'YES', 'monitoring_parameter' => 'YES'));
 			// $cap = new tosca_capability('tosca.capabilities.nfv.HA');
 				// $cap->properties(array('component_version' => 'version 0.1', 'admin_credential' => 'my credential'));
 				// $cap->attributes(array('tosca_id' => '0003', 'tosca_name' => 'vdu'));
+			$VDU1->capabilities(array('high_availability' => 'YES', 'virtualbinding' => 'YES', 'monitoring_parameter' => 'YES'));
 			
 			$VDU1->requirements(array('high_availability' => 'YES' ));   // short notation for requirements
 			$rq = new tosca_requirement();    // extended notation for requirements
@@ -94,7 +94,7 @@ $st = new tosca_service_template();
 
 echo $st->yaml();
 
-print_r($VDU1->type_info());
+print_r($VDU1->get());
 
 $stp = new tosca_service_template($st->get());
 
@@ -128,10 +128,10 @@ $grp = $ttp->get_groups('VNFFG1');
 // $ttp->substitution_mappings($smp->get());
 // $stp->topology_template($ttp->get());
 
-// echo $stp->yaml();
+echo $stp->yaml();
 
 
 echo "\n\nPARSED ENTITIES: \n\n";
-// print_r($ifp);
+print_r($ntp);
 
 ?>

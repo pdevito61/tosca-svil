@@ -143,7 +143,67 @@ class tosca_type {							// design pattern : strategy
 			echo $e."\n\n";
 		}
 	}
-	private function check_name($attr_name, $attr_value, $type_to_check = null) {
+	private function check_name($attr_name, $attr_type, $type_to_check = null) {
+		// check for attribute type
+		// echo "\n attr_name: ".$attr_name."\n";
+		$check = false;
+		$attr_type_found = false;
+		$derived_from_type = null;
+		if ($type_to_check == null) $type_to_check = $this->type_name();
+		foreach(tosca_definitions::get_definitions()->definitions() as $family_type => $definition) {
+			foreach($definition as $ty_name => $ty_def) {
+				if ($type_to_check == $ty_name) {
+				// echo "type found ".$type_to_check." \n";
+					if(array_key_exists('derived_from', $ty_def)) $derived_from_type = $ty_def['derived_from'];
+					if(array_key_exists($attr_type, $ty_def)) {
+						$attr_type_found = true;
+						if ($attr_type != 'requirements') {
+							foreach($ty_def[$attr_type] as $at_name => $at_def) {
+								// echo "Confronto ".$attr_name." e ".$at_name."\n";
+								if( $attr_name == $at_name ) {
+									$check = true;
+									// echo "Found! ".$attr_name." Break internal loop\n";
+									break;
+								}
+							}
+						}
+						else {
+							foreach($ty_def[$attr_type] as $req) {
+								if (array_key_exists($attr_name,$req)) {
+									$check = true;
+									// echo "Found! ".$attr_name." Break internal loop\n";
+									break;
+								}
+							}
+						}
+					}
+				}
+				if ($check) {
+					// echo "Found! Break external loop\n";
+					break;
+				}
+			}
+			if ($check) {
+				// echo "Found! Break external loop\n";
+				break;
+			}
+		}
+		if (!$check) {
+			if(isset($derived_from_type)) {
+			// type is derived; check recursively for source type
+			// echo "derived from ".$derived_from_type."\n";
+				$check = $this->check_name($attr_name, $attr_type, $derived_from_type);
+			}
+			else {
+				if (!$attr_type_found) {
+					// echo "attr_name not found in definitions but attr_type not present in type definitions => attr_name could have any value";
+					$check = true;
+				}
+			}
+		}
+		return $check;
+	}
+	private function check_name_saved($attr_name, $attr_value, $type_to_check = null) {
 		// check for attribute type
 		// echo "\n attr_name: ".$attr_name."\n";
 		$check = false;
@@ -205,10 +265,134 @@ class tosca_type {							// design pattern : strategy
 		return $this->check_name($e_name, $e_type);
 	}
 }
+class operator {
+	public static function equal($value) {
+		$_structure = array('equal' => $value);
+		return $_structure;
+	}
+	public static function greater_than($value) {
+		$_structure = array('greater_than' => $value);
+		return $_structure;
+	}
+	public static function greater_or_equal($value) {
+		$_structure = array('greater_or_equal' => $value);
+		return $_structure;
+	}
+	public static function less_than($value) {
+		$_structure = array('less_than' => $value);
+		return $_structure;
+	}
+	public static function less_or_equal($value) {
+		$_structure = array('less_or_equal' => $value);
+		return $_structure;
+	}
+	public static function in_range($lower, $upper) {
+		$_structure = array();
+		if(is_int($lower) and is_int($upper) and $upper >= $lower) {
+			$_structure['in_range'][] = $lower;
+			$_structure['in_range'][] = $upper;
+		}
+		else if (is_int($lower) and ($upper == 'UNBOUNDED')) {
+			$_structure['in_range'][] = $lower;
+			$_structure['in_range'][] = $upper;
+		}
+		return $_structure;
+	}
+	public static function valid_values($list_val) {
+		$_structure = array();
+		if (is_array($list_val)) {
+			foreach($list_val as $val) $_structure['valid_values'][] = $val;
+		}
+		return $_structure;
+	}
+	public static function length($value) {
+		$_structure = array('length' => $value);
+		return $_structure;
+	}
+	public static function min_length($value) {
+		$_structure = array('min_length' => $value);
+		return $_structure;
+	}
+	public static function max_length($value) {
+		$_structure = array('max_length' => $value);
+		return $_structure;
+	}
+	public static function concat($list_val) {
+		$_structure = array();
+		if (is_array($list_val)) {
+			foreach($list_val as $val) $_structure['concat'][] = $val;
+		}
+		return $_structure;
+	}
+	public static function token($string, $token, $index) {
+		$_structure = array();
+		if (is_string($string) and is_string($token) and is_int($index)) {
+			$_structure['token'][] = $string;
+			$_structure['token'][] = $token;
+			$_structure['token'][] = $index;
+		}
+		return $_structure;
+	}
+	public static function get_input($name) {
+		if (is_string($name)) $_structure = array('get_input' => $name);
+		return $_structure;
+	}
+	/*
+	get_property:  [ <modelable_entity_name>, <optional_req_or_cap_name>, <property_name>,  <nested_property_name_or_index_1>, ..., <nested_property_name_or_index_n> ]
+	get_attribute: [ <modelable_entity_name>, <optional_req_or_cap_name>, <attribute_name>, <nested_attribute_name_or_index_1>, ..., <nested_attribute_name_or_index_n>,   ]
+	*/
+	public static function get_property($entity, $property, $op_name = null) {
+		$_structure = array();
+		if (is_string($entity) and is_string($property)) {
+			$_structure['get_property'][] = $entity;
+			if (isset($op_name) and is_string($op_name)) $_structure['get_property'][] = $op_name;
+			$_structure['get_property'][] = $property;
+		}
+		return $_structure;
+	}
+	public static function get_attribute($entity, $attribute, $op_name = null) {
+		$_structure = array();
+		if (is_string($entity) and is_string($attribute)) {
+			$_structure['get_attribute'][] = $entity;
+			if (isset($op_name) and is_string($op_name)) $_structure['get_attribute'][] = $op_name;
+			$_structure['get_attribute'][] = $attribute;
+		}
+		return $_structure;
+	}
+	public static function get_operation_output($entity, $if_name, $op_name, $out_var) {
+		$_structure = array();
+		if (is_string($entity) and is_string($if_name) and is_string($op_name) and is_string($out_var)) {
+			$_structure['get_operation_output'][] = $entity;
+			$_structure['get_operation_output'][] = $if_name;
+			$_structure['get_operation_output'][] = $op_name;
+			$_structure['get_operation_output'][] = $out_var;
+		}
+		return $_structure;
+	}
+	public static function get_nodes_of_type($node_type) {
+		$_structure = array();
+		if (is_string($node_type)) $_structure['get_nodes_of_type'] = $node_type;
+		return $_structure;
+	}
+	public static function get_artifact($entity, $artifact, $location = null, $remove = null) {
+		$_structure = array();
+		if (is_string($entity) and is_string($artifact)) {
+			$_structure['get_artifact'][] = $entity;
+			$_structure['get_artifact'][] = $artifact;
+			if (isset($location) and is_string($location)) $_structure['get_artifact'][] = $location;
+			if (isset($remove) and is_bool($remove)) $_structure['get_artifact'][] = $remove;
+		}
+		return $_structure;
+	}
+	public static function map_of($node, $value) {
+		$_structure = array($node, $value);
+		return $_structure;
+	}
+}
 interface tosca_component_interface {													// design pattern : composite
 	public function get();
 	public function add($entities);
-	public function delete($todel);
+	public function delete_childs($todel);
 	public function get_child($toget);
 }
 class tosca_component implements tosca_component_interface {							// design pattern : composite
@@ -239,7 +423,20 @@ class tosca_component implements tosca_component_interface {							// design pat
 			$this->error_out($e);
 		}
 	}
-	protected function single_entity_delete($e_type) {
+	protected function simple_scalar($e_type, $str_value) {
+		try {
+			if (!isset($e_type)) { throw new Exception('Missing argument: entity_type is mandatory');
+			}
+			if (!is_string($e_type)) { throw new Exception('Invalid argument: entity_type must be a string');
+			}
+			if (isset($str_value)) {
+				$this->_structure[$e_type] = $str_value;
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+	}
+	protected function delete_single_entity($e_type) {
 		try {
 			if (!isset($e_type)) throw new Exception('Missing argument: entity_type is mandatory');
 			if (!is_string($e_type)) throw new Exception('Invalid argument: entity_type must be a string');
@@ -283,6 +480,11 @@ class tosca_component implements tosca_component_interface {							// design pat
 				}
 			}
 			foreach($entities as $e_name => $e_value) {
+				if ($this->has_type()) {
+					if (!$this->_type->check_entity($e_type, $e_name)) {
+						throw new Exception('Invalid element in '.$e_type.': '.$e_name.' not allowed for '.$this->_type->type_name());
+					}
+				}
 				if (isset($e_type)) {
 					$this->_structure[$e_type][$e_name] = $e_value;
 				}
@@ -311,11 +513,84 @@ class tosca_component implements tosca_component_interface {							// design pat
 			$this->error_out($e);
 		}
 	}
-	protected function sequence_delete($e_type, $todel) {  			// da fare
+	protected function delete_sequence($e_type, $todel) { 
+		$this->delete_sequenced_list($e_type, $todel);
 	}
-	protected function mapping_delete($e_type, $todel) {  			// da fare
+	protected function delete_mapping($e_type, $todel = null) { 
+		try {
+			if(isset($todel) && !is_array($todel)) { throw new Exception('Invalid argument: entities to delete must be array');
+			}
+			if (isset($e_type)) {
+				if (!is_string($e_type)) throw new Exception('Invalid argument: entity_type must be a string');
+				if (!isset($this->_structure[$e_type])) return;
+				if (isset($todel) ) {
+					foreach($todel as $name) {
+						if (array_key_exists($name, $this->_structure[$e_type])) unset($this->_structure[$e_type][$name]);
+					}
+					if (count($this->_structure[$e_type]) == 0) unset($this->_structure[$e_type]);
+				}
+				else {
+					unset($this->_structure[$e_type]);
+				}
+			}
+			else {
+				if (!isset($this->_structure)) return;
+				if (isset($todel) ) {
+					foreach($todel as $name) {
+						if (array_key_exists($name, $this->_structure)) unset($this->_structure[$name]);
+					}
+				}
+				else {
+					unset($this->_structure);
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
 	}
-	protected function sequenced_list_delete($e_type, $todel) {  		// da fare
+	protected function delete_sequenced_list($e_type, $todel = null) { 
+		try {
+			if(isset($todel) && !is_array($todel)) { throw new Exception('Invalid argument: entities to delete must be array');
+			}
+			if (isset($e_type)) {
+				if (!is_string($e_type)) throw new Exception('Invalid argument: entity_type must be a string');
+				if (!isset($this->_structure[$e_type])) return;
+				if (isset($todel) ) {
+					foreach($todel as $name) {
+						foreach($this->_structure[$e_type] as $pos => $prop) {
+							if (array_key_exists($name, $prop)) {
+								unset($this->_structure[$e_type][$pos]);
+								break;
+							}
+						}
+						$this->_structure[$e_type] = array_values($this->_structure[$e_type]);
+					}
+					if (count($this->_structure[$e_type]) == 0) unset($this->_structure[$e_type]);
+				}
+				else {
+					unset($this->_structure[$e_type]);
+				}
+			}
+			else {
+				if (!isset($this->_structure)) return;
+				if (isset($todel) ) {
+					foreach($todel as $name) {
+						foreach($this->_structure as $pos => $prop) {
+							if (array_key_exists($name, $prop)) {
+								unset($this->_structure[$pos]);
+								break;
+							}
+						}
+						$this->_structure = array_values($this->_structure);
+					}
+				}
+				else {
+					unset($this->_structure);
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
 	}
 	
 	public function yaml($file = null) {
@@ -334,12 +609,17 @@ class tosca_component implements tosca_component_interface {							// design pat
 	public function is_composite() { 
 		return false;
 	}
-	public function get() { 
-		if (isset($this->_structure)) return $this->_structure;
+	public function get($e_type = null) { 
+		if (!isset($e_type)) {
+			if (isset($this->_structure)) return $this->_structure;
+		}
+		else {
+			if (isset($this->_structure[$e_type])) return $this->_structure[$e_type];
+		}
 	}
 	public function add($entities) {  			// da fare
 	}
-	public function delete($todel) {  			// da fare
+	public function delete_childs($todel) {  			// da fare
 	}
 	public function get_child($toget) {  			// da fare
 	}
@@ -354,14 +634,58 @@ class tosca_composite extends tosca_component implements tosca_component_interfa
 	function __construct($type_name = null, $clear = true) {
 		parent::__construct($type_name, $clear);
 	}
+	protected function collection($e_type, $entities) {
+		if (($comp = $this->get_child($e_type)) === null) {
+			$comp = new tosca_composite();
+		}
+		$comp->add($entities);
+		$this->add([$e_type => $comp]);
+	}
+	protected function sequenced_collection($e_type, $entities) {
+		if (($comp = $this->get_child($e_type)) === null) {
+			$comp = new tosca_sequenced_list();
+		}
+		$comp->add($entities);
+		$this->add([$e_type => $comp]);
+	}
+	protected function get_collection($e_type, $name) {
+		$comp = $this->get_child($e_type);
+		if (isset($name) && $comp !== null) { return $comp->get_child($name);
+		}
+		else { return $comp;
+		}
+	}
+	protected function delete_collection($e_type, $todel) {
+		if (isset($todel)) {
+			$comp = $this->get_child($e_type);
+			if ($comp !== null) {
+				$comp->delete_childs($todel);
+				if (!$comp->has_childs()) $this->delete_childs([$e_type]);
+			}
+		}
+		else {
+			$this->delete_childs([$e_type]);
+		}
+	}
+	
 	public function is_composite() { 
 		return true;
 	}
-	public function get() {
+	public function has_childs() {
+		return (count($this->_childs) != 0);
+	}
+	public function get($e_type = null) {
+		if (isset($e_type)) return parent::get($e_type);
 		$ar = array();
 		$ar = array_merge($ar, $this->_structure);
 		foreach($this->_childs as $name => $obj) {
-			$ar = array_merge($ar, [$name=>$obj->get()]);
+			// echo " -- get ".$name."\n";
+			if ($name == 'operations') {
+				$ar = array_merge($ar, $obj->get());
+			}
+			else {
+				$ar = array_merge($ar, [$name=>$obj->get()]);
+			}
 		}
 		return $ar;
 	}
@@ -370,10 +694,23 @@ class tosca_composite extends tosca_component implements tosca_component_interfa
 			if(!is_array($entities)) { throw new Exception('Invalid argument: entities must be an array');
 			}
 			foreach($entities as $e_name => $e_value) {
+				if (!is_object($e_value)) throw new Exception('Invalid element '.$e_name.': his value must be an object');
 				if ($this->has_type()) {
-					foreach($e_value->get() as $attr_name => $attr_value ) {
-						if (!$this->_type->check_entity($e_name, $attr_name)) {
-							throw new Exception('Invalid element in '.$e_name.': '.$attr_name.' not allowed for '.$this->_type->type_name());
+					if (get_class($e_value) == 'tosca_sequenced_list') {  
+						foreach($e_value->get() as $value) {
+							foreach($value as $attr_name => $attr_value ) {
+								if (!$this->_type->check_entity($e_name, $attr_name)) {
+									throw new Exception('Invalid element in '.$e_name.': '.$attr_name.' not allowed for '.$this->_type->type_name());
+								}
+							}
+						}
+					}
+					else {
+						foreach($e_value->get() as $attr_name => $attr_value ) {
+							// echo 'check_entity('.$e_name.', '.$attr_name.")\n";
+							if (!$this->_type->check_entity($e_name, $attr_name)) {
+								throw new Exception('Invalid element in '.$e_name.': '.$attr_name.' not allowed for '.$this->_type->type_name());
+							}
 						}
 					}
 				}
@@ -383,7 +720,7 @@ class tosca_composite extends tosca_component implements tosca_component_interfa
 			$this->error_out($e);
 		}
 	}
-	public function delete($todel = null) {
+	public function delete_childs($todel = null) {
 		try {
 			if (!isset($this->_childs)) return;
 			if (isset($todel) ) {
@@ -418,11 +755,822 @@ class tosca_composite extends tosca_component implements tosca_component_interfa
 		return null;
 	}
 }
-class tosca_service_template extends tosca_composite {  
+class tosca_sequenced_list extends tosca_composite implements tosca_component_interface {
+	public function get($e_type = null) {
+		if (isset($e_type)) return parent::get($e_type);
+		$ar = array();
+		$ar = array_merge($ar, $this->_structure);
+		foreach($this->_childs as $name => $obj) {
+			// echo " -- get ".$name."\n";
+			$ar = array_merge($ar, [[$name=>$obj->get()]]);
+		}
+		return $ar;
+	}	
+}
+
+class tosca_substitution_mapping extends tosca_component {  //OK
+	function __construct($dummy = null, $struct = null) {
+		if (isset($struct)) $this->set($struct);
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'node_type': 
+						$this->simple_string($key, $value);
+						break;
+					case 'description':
+						$this->description($value);
+						break;
+					case 'capabilities':
+						$this->capabilities($value);
+						break;
+					case 'requirements':
+						$this->requirements($value);
+						break;
+				}
+			}
+		}
+	}
+
+	public function node_type($value = null) {
+		if (isset($value) ) $this->simple_string(__FUNCTION__, $value);
+		return $this;
+	}
+	public function capabilities($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function requirements($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+				$this->delete_single_entity($entity);
+				break;
+			case 'capabilities':
+			case 'requirements':
+				$this->delete_mapping($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_parameter extends tosca_component {   			//OK
+	function __construct($type_name, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, true);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type':
+						$this->_type = new tosca_type($value);
+						break;
+					case 'description':
+						$this->description($value);
+						break;
+					case 'value':
+					case 'required':
+					case 'default':
+					case 'status':							// status values are not controlled 
+					case 'constraints':
+						$this->keys(array($key => $value));
+						break;
+				//	case 'entry_schema':					// entity not mapped
+				}
+			}
+		}
+	}
+
+	public function keys($keys = null) {
+		try {
+			if(isset($keys)) {
+				if(!is_array($keys)) {
+					throw new Exception('Invalid argument: keys must be an array');
+				}
+				foreach($keys as $key_name => $key_value) {
+					try {
+						if ( $key_name == 'value' or $key_name == 'required' or $key_name == 'default' ) $this->simple_scalar($key_name, $key_value);
+						else if ($key_name == 'status') $this->simple_string($key_name, $key_value);
+						else if ($key_name == 'constraints') $this->sequence($key_name, $key_value);
+						else {
+							throw new Exception('Invalid argument: key name '.$key_name);
+						}
+					} catch(Exception $e) {
+						$this->error_out($e);
+					}
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+			case 'value':
+			case 'required':
+			case 'default':
+			case 'status':
+				$this->delete_single_entity($entity);
+				break;
+			case 'constraints':
+				$this->delete_sequence($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_capability  extends  tosca_component { 			//OK
+	function __construct($type_name = null, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, true);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type':
+						$this->_type = new tosca_type($value);
+						break;
+					case 'properties':
+						$this->properties($value);
+						break;
+					case 'attributes':
+						$this->attributes($value);
+						break;
+				}
+			}
+		}
+	}
+
+	public function properties($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function attributes($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'properties':
+			case 'attributes':
+				$this->delete_mapping($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_artifact extends tosca_component { 				//OK
+	function __construct($type_name, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, true);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type': 
+						$this->_type = new tosca_type($value);
+						break;
+					case 'description': 
+						$this->description($value);
+						break;
+					case 'file':
+					case 'repository':
+					case 'deploy_path':
+						$this->keys(array($key => $value));
+				}
+			}
+		}
+	}
+	
+	public function keys($keys = null) {
+		try {
+			if(isset($keys)) {
+				if(!is_array($keys)) { throw new Exception('Invalid argument: keys must be an array');
+				}
+				if (!array_key_exists('file', $keys) && !isset($this->_structure['file'])) { 
+					throw new Exception('Invalid argument: file is mandatory in tosca_artifact');
+				}
+				foreach($keys as $key_name => $key_value) {
+					try {
+						if ( $key_name == 'file' or $key_name == 'repository' or $key_name == 'deploy_path' ) {
+							$this->simple_string($key_name, $key_value);
+						}
+						else {
+							throw new Exception('Invalid argument: key name '.$key_name);
+						}
+					} catch(Exception $e) {
+						$this->error_out($e);
+					}
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'file':  // file is mandatory 
+				break;
+			case 'description':
+			case 'repository':
+			case 'deploy_path':
+				$this->delete_single_entity($entity);
+				break;
+		}
+	}
+}
+class tosca_node_filter extends  tosca_component {    		//OK
+	function __construct($dummy = null, $struct = null) {
+		if (isset($struct)) $this->set($struct);
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'description': 
+						$this->description($value);
+						break;
+					case 'properties':
+						foreach ($value as $prop) {
+							$this->properties($prop);
+						}
+						break;
+					case 'capabilities':
+						foreach ($value as $cap) {
+							foreach($cap as $cap_name => $pr) {
+								$properties = array();
+								foreach($pr['properties'] as $prop) {
+									$properties = array_merge($properties, $prop);
+								}
+								$this->capabilities(array($cap_name => $properties));
+							}
+						}
+						break;
+				}
+			}
+		}
+	}
+	
+	public function properties($pr = null) {
+		if(isset($pr)) $this->sequenced_list(__FUNCTION__, $pr);
+		return $this;
+	}
+	public function capabilities($cp = null) {
+		try {
+			if(isset($cp)) {
+				if (!is_array($cp)) { throw new Exception('Invalid argument: capabilities must be an array');
+				}
+				foreach($cp as $cp_name => $properies) {
+					$prop = new tosca_node_filter();
+					$prop->properties($properies);
+					$this->sequenced_list(__FUNCTION__, [$cp_name => $prop->get()]);
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+				$this->delete_single_entity($entity);
+				break;
+			case 'properties':
+			case 'capabilities':
+				$this->delete_sequenced_list($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_operation extends tosca_component {   			//OK
+	function __construct($dummy = null, $struct = null) {
+		if (isset($struct)) $this->set($struct);
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'description':
+						$this->description($value);
+						break;
+					case 'inputs':
+						$this->inputs($value);
+						break;
+					case 'implementation':
+						if (is_string($value))
+							$this->implementation($value);
+						else if (is_array($value)) 
+							$this->implementation($value['primary'], $value['dependencies']);
+						break;
+				}
+			}
+		}
+		else if (is_string($struct)) {
+			$this->implementation($struct);
+		}
+	}
+	
+	public function inputs($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function implementation($art_name = null, $dep_art_names = null) {
+		try {
+			if (isset($art_name)) {
+				if (!is_string($art_name)) {
+					throw new Exception('Invalid argument: implementation artifact must be a string');
+				}
+				if(isset($dep_art_names)) {
+					if (!is_array($dep_art_names)) {
+						throw new Exception('Invalid argument: list of dependent artifacts must be array');
+					}
+					if (isset($this->_structure['implementation']) && is_string($this->_structure['implementation'])) {
+						unset($this->_structure['implementation']);
+					}
+					$this->_structure['implementation']['primary'] = $art_name;
+					foreach($dep_art_names as $dependent)
+						$this->_structure['implementation']['dependencies'][] = $dependent;
+				}
+				else {
+					$this->_structure['implementation'] = $art_name;
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+			case 'implementation':
+				$this->delete_single_entity($entity);
+				break;
+			case 'inputs':
+				$this->delete_mapping($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_requirement extends tosca_composite {   		//OK
+	function __construct($dummy = null, $struct = null) {
+		if (isset($struct)) $this->set($struct);
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'description': 
+						$this->description($value);
+						break;
+					case 'node':
+					case 'relationship':
+					case 'capability':
+						$this->keys(array($key => $value));
+						break;
+					case 'node_filter':
+						$this->node_filter(new tosca_node_filter(null, $value));
+						break;
+				}
+			}
+		}
+	}
+
+	public function keys($keys = null) {
+		try {
+			if(isset($keys)) {
+				if(!is_array($keys)) {
+					throw new Exception('Invalid argument: keys must be an array');
+				}
+				foreach($keys as $key_name => $key_value) {
+					try {
+						if ( $key_name == 'node' or $key_name == 'relationship' or $key_name == 'capability') {
+							$this->simple_string($key_name, $key_value);
+						}
+						else {
+							throw new Exception('Invalid key name '.$key_name);
+						}
+					} catch(Exception $e) {
+						$this->error_out($e);
+					}
+				}
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function node_filter($tt) {
+		if (is_object($tt)) { 
+			$this->add([__FUNCTION__ => $tt]);
+		}
+		return $this;
+	}
+	public function get_node_filter() { 
+		return $this->get_child(substr(__FUNCTION__, 4));
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+			case 'node':
+			case 'relationship':
+			case 'capability':
+				$this->delete_single_entity($entity);
+				break;
+			case 'node_filter':
+				$this->delete_childs([$entity]);
+				break;
+		}
+	}
+}
+class tosca_node_template  extends  tosca_composite { 		//OK
+	function __construct($type_name, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, true);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {	
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type': 
+						$this->_type = new tosca_type($value);
+						break;
+					case 'description':
+						$this->description($value);
+						break;
+					case 'properties':
+						$this->properties($value);
+						break;
+					case 'attributes':
+						$this->attributes($value);
+						break;
+					case 'artifacts':
+						foreach($value as $name => $parameter) {
+							$this->artifacts([$name => new tosca_artifact(null, $parameter)]);
+						}
+						break;
+					case 'capabilities':
+						foreach($value as $name => $parameter) {
+							$this->capabilities([$name => new tosca_capability(null, $parameter)]);
+						}
+						break;
+					case 'requirements':
+						foreach ($value as $req) {
+							foreach($req as $name => $parameter) {
+							//print_r($req);
+								$this->requirements([$name => new tosca_requirement(null, $parameter)]);
+							}
+						}
+						break;
+					case 'interfaces':
+						foreach($value as $name => $parameter) {
+							$this->interfaces([$name => new tosca_interface(null, $parameter)]);
+						}
+						break;
+/*
+					case 'node_filter':
+					case 'directives':
+					case 'copy':
+						break;
+*/
+				}
+			}
+		}
+	}
+
+	public function properties($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function attributes($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function interfaces($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_interfaces($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function capabilities($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_capabilities($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function artifacts($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_artifacts($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function requirements($entities = null) {
+		if (isset($entities)) $this->sequenced_collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_requirements($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function node_filter($nf = null) {
+		if (is_object($nf)) { 
+			$this->add([__FUNCTION__ => $nf]);
+		}
+		return $this;
+	}
+	public function get_node_filter() { 
+		return $this->get_child(substr(__FUNCTION__, 4));
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+				$this->delete_single_entity($entity);
+				break;
+			case 'node_filter':
+				$this->delete_childs([$entity]);
+				break;
+			case 'properties':
+			case 'attributes':
+				$this->delete_mapping($entity, $todel);
+				break;
+			case 'artifacts':
+			case 'capabilities':
+			case 'interfaces':
+			case 'requirements':
+				$this->delete_collection($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_interface  extends  tosca_composite { 	 		//OK
+	function __construct($type_name = null, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, false);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type':
+						$this->_type = new tosca_type($value);
+						break;
+					case 'inputs':
+						$this->inputs($value);
+						break;
+					default:
+						$this->operations([$key => new tosca_operation(null, $value)]);
+						break;
+				}
+			}
+		}
+	}
+
+	public function inputs($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function operations($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_operations($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function delete($entity, $todel = null) {
+			switch ($entity) {
+				case 'inputs':
+					$this->delete_mapping($entity, $todel);
+					break;
+				case 'operations':
+					$this->delete_collection($entity, $todel);
+					break;
+			}
+	}
+}
+class tosca_group extends tosca_composite { 	 			//OK
+	function __construct($type_name, $struct = null) {
+		if (isset($type_name)) {
+			parent::__construct($type_name, true);
+		}
+		else {
+			$this->set($struct);
+		}
+	}
+	private function set($struct) {	
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'type': 
+						$this->_type = new tosca_type($value);
+						break;
+					case 'description':
+						$this->description($value);
+						break;
+					case 'interfaces':
+						foreach($value as $name => $parameter) {
+							$this->interfaces([$name => new tosca_interface(null, $parameter)]);
+						}
+						break;
+					case 'properties':
+						$this->properties($value);
+						break;
+					case 'targets':
+						$this->targets($value);
+						break;
+				}
+			}
+		}
+	}
+
+	public function properties($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function interfaces($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_interfaces($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function targets($entities = null) {
+		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+				$this->delete_single_entity($entity);
+				break;
+			case 'properties':
+			case 'targets':
+				$this->delete_mapping($entity, $todel);
+				break;
+			case 'interfaces':
+				$this->delete_collection($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_topology_template extends tosca_composite{   	//OK
+	function __construct($dummy = null, $struct = null) {
+		if (isset($struct)) $this->set($struct);
+	}
+	private function check_group($gr_def) { 
+		if (!array_key_exists('targets', $gr_def)) return false;  // targets is mandatory
+		$check = true;
+		foreach ($gr_def['targets'] as $gr_member) {
+			if (!array_key_exists($gr_member, $this->get_node_templates()->get())) {
+				$check = false;
+				break;
+			}
+		}
+		return $check;
+	}
+	private function set($struct) {
+		if (is_array($struct)) {
+			foreach($struct as $key => $value) {
+				switch ($key) {
+					case 'description':
+						$this->description($value);
+						break;
+					case 'substitution_mappings':
+						$this->substitution_mappings(new tosca_substitution_mapping(null, $value));
+						break;
+					case 'inputs':
+						foreach($value as $name => $parameter) {
+							$this->inputs([$name => new tosca_parameter(null, $parameter)]);
+						}
+						break;
+					case 'node_templates':
+						foreach($value as $name => $parameter) {
+							$this->node_templates([$name => new tosca_node_template(null, $parameter)]);
+						}
+						break;
+					case 'groups':
+						foreach($value as $name => $parameter) {
+							$this->groups([$name => new tosca_group(null, $parameter)]);
+						}
+						break;
+					case 'outputs':
+						foreach($value as $name => $parameter) {
+							$this->outputs([$name => new tosca_parameter(null, $parameter)]);
+						}
+						break;
+/* 																					entities not mapped
+					case 'relationship_templates':
+					case 'policies':
+					case 'workflows':
+						break;
+*/
+				}
+			}
+		}
+	}
+
+	public function inputs($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_inputs($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function outputs($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_outputs($name = null) {
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function node_templates($entities = null) {
+		if (isset($entities)) $this->collection(__FUNCTION__, $entities);
+		return $this;
+	}
+	public function get_node_templates($name = null) { 
+		return $this->get_collection(substr(__FUNCTION__, 4), $name);
+	}
+	public function substitution_mappings($sm = null) {
+		if (is_object($sm)) { 
+			$this->add([__FUNCTION__ => $sm]);
+		}
+		return $this;
+	}
+	public function get_substitution_mappings() {
+		return $this->get_child(substr(__FUNCTION__, 4));
+	}
+	public function groups($entities = null) {
+		try {
+			if (isset($entities)) {
+				if (!is_array($entities)) {
+					throw new Exception('Invalid argument: entities must be array');
+				}
+				foreach($entities as $name => $def) {
+					if (!$this->check_group($def->get())) {
+						throw new Exception('Invalid argument: in group '.$name.': entity targets is mandatory and his members must be node templates defined within this same Topology Template');
+					}
+				}
+				$this->collection(__FUNCTION__, $entities);
+			}
+		} catch(Exception $e) {
+			$this->error_out($e);
+		}
+		return $this;
+	}
+	public function get_groups($name = null) {
+		return $this->entity_objects(substr(__FUNCTION__, 4), $name);
+	}
+	public function delete($entity, $todel = null) {
+		switch ($entity) {
+			case 'description':
+				$this->delete_single_entity($entity);
+				break;
+			case 'substitution_mappings':
+				$this->delete_childs([$entity]);
+				break;
+			case 'inputs':
+			case 'outputs':
+			case 'node_templates':
+			case 'groups':
+				$this->delete_collection($entity, $todel);
+				break;
+		}
+	}
+}
+class tosca_service_template extends tosca_composite {   	// to be completed
 	function __construct($struct = null) {
 		if (isset($struct)) $this->set($struct);
 	}
-	private function set($struct) {					// da completare
+	private function set($struct) {					// to be completed with type definitions
 		if (is_file($struct)) {
 			$parsed = yaml_parse_file($struct);
 			if ($parsed != false) $struct = $parsed;
@@ -439,7 +1587,7 @@ class tosca_service_template extends tosca_composite {
 					case 'metadata':
 						$this->metadata($value);
 						break;
-					case 'imports':
+					case 'imports':						// only short notation <label>: <file_name>
 						foreach ($value as $file) {
 							$this->imports($file);
 						}
@@ -457,31 +1605,25 @@ class tosca_service_template extends tosca_composite {
 					// case 'policy_types':
 						// $this->$key($value, true);
 						// break;
-					case 'dsl_defintions':
-					case 'repositories':
-						break;
+					// case 'dsl_defintions':				entities not mapped
+					// case 'repositories':
+						// break;
 				}
 			}
 		}
 	}
 
-	public function imports($imp) {
-		try {
-			if(isset($imp)) {
-				if(!is_array($imp)) { throw new Exception('Invalid argument: imports must be an array');
-				}
-				$this->sequenced_list(__FUNCTION__, $imp);
-				foreach($imp as $imp_name => $imp_value) {
-					tosca_definitions::get_definitions()->import_definitions($imp_value);
-				}
-			}
-		} catch(Exception $e) {
-			$this->error_out($e);
-		}
+	public function tosca_definitions_version($profile) {		// required (to be done)
+		if (isset($profile)) $this->simple_string(__FUNCTION__, $profile);
 		return $this;
 	}
-	public function tosca_definitions_version($profile) {
-		if (isset($profile)) $this->simple_string(__FUNCTION__, $profile);
+	public function imports($imp) {
+		if(isset($imp)) {
+			$this->sequenced_list(__FUNCTION__, $imp);
+			foreach($imp as $imp_name => $imp_value) {
+				tosca_definitions::get_definitions()->import_definitions($imp_value);
+			}
+		}
 		return $this;
 	}
 	public function metadata($mds) {
@@ -497,7 +1639,7 @@ class tosca_service_template extends tosca_composite {
 	public function get_topology_template() { 
 		return $this->get_child(substr(__FUNCTION__, 4));
 	}
-/*														da fare
+/*														to be done
 	public function node_types($types = null, $new = false) {
 		if (isset($types)) {
 			$this->simple_list(__FUNCTION__, $types, $new);
@@ -558,14 +1700,16 @@ class tosca_service_template extends tosca_composite {
 	public function get_artifact_types($name = null) {
 		return $this->entity_objects(substr(__FUNCTION__, 4), $name);
 	}
-	public function delete($entity, $todel = null) {
+*/
+	public function delete($entity, $todel = null) {	// to be completed
 		switch ($entity) {
 			case 'description':
 			case 'tosca_definitions_version':
-			case 'topology_template':
-				$this->single_entity_delete($entity);
+				$this->delete_single_entity($entity);
 				break;
-			case 'metadata':
+			case 'topology_template':
+				$this->delete_childs([$entity]);
+				break;
 			case 'node_types':
 			case 'group_types':
 			case 'capability_types':
@@ -574,160 +1718,17 @@ class tosca_service_template extends tosca_composite {
 			case 'artifact_types':
 			case 'relationship_types':
 			case 'policy_types':
-				$this->list_delete($entity, $todel);
+				break;
+			case 'metadata':
+				$this->delete_mapping($entity, $todel);
 				break;
 			case 'imports':
-				$this->list_delete($entity, $todel, true);
+				$this->delete_sequenced_list($entity, $todel);
 				break;
 		}
 	}
 	public function type_info($type_name, $e_type = null) {
-		return $this->super_type($type_name, $e_type);
+		return tosca_definitions::get_definitions()->type_info($type_name, $e_type);
 	}
-*/
-}
-class tosca_topology_template extends tosca_composite{
-	function __construct($dummy = null, $struct = null) {
-		if (isset($struct)) $this->set($struct);
-	}
-	private function check_group($gr_def) {  			// da fare
-		$check = true;
-		foreach ($gr_def['targets'] as $gr_member) {
-			if (!array_key_exists($gr_member, $this->node_templates())) {
-				$check = false;
-				break;
-			}
-		}
-		return $check;
-	}
-	private function set($struct) {  					// da completare
-		if (is_array($struct)) {
-			foreach($struct as $key => $value) {
-				switch ($key) {
-					case 'description':
-						$this->description($value);
-						break;
-/*					case 'inputs':
-						$this->inputs($value, true);
-						break;
-					case 'node_templates':
-						$this->node_templates($value, true);
-						break;
-					case 'relationship_templates':
-						//$this->relationship_templates($value);
-						break;
-					case 'groups':
-						$this->groups($value, true);
-						break;
-					case 'policies':
-						//$this->policies($value);
-						break;
-					case 'outputs':
-						$this->outputs($value, true);
-						break;
-					case 'substitution_mappings':
-						$this->substitution_mappings($value, true);
-						break;
-*/
-				}
-			}
-		}
-	}
-
-	public function inputs($entities) {
-		if (isset($entities)) {
-			$comp = new tosca_composite();
-			$comp->add($entities);
-			$this->add([__FUNCTION__ => $comp]);
-		}
-		return $this;
-	}
-	public function get_inputs($name = null) {
-		$comp = $this->get_child(substr(__FUNCTION__, 4));
-		if (isset($name) && $comp !== null) { return $comp->get_child($name);
-		}
-		else { return $comp;
-		}
-	}
-	public function outputs($entities) {
-		if (isset($entities)) {
-			$comp = new tosca_composite();
-			$comp->add($entities);
-			$this->add([__FUNCTION__ => $comp]);
-		}
-		return $this;
-	}
-	public function get_outputs($name = null) {
-		$comp = $this->get_child(substr(__FUNCTION__, 4));
-		if (isset($name) && $comp !== null) { return $comp->get_child($name);
-		}
-		else { return $comp;
-		}
-	}
-	public function node_templates($entities) {
-		if (isset($entities)) {
-			$comp = new tosca_composite();
-			$comp->add($entities);
-			$this->add([__FUNCTION__ => $comp]);
-		}
-		return $this;
-	}
-	public function get_node_templates($name = null) { 
-		$comp = $this->get_child(substr(__FUNCTION__, 4));
-		if (isset($name) && $comp !== null) { return $comp->get_child($name);
-		}
-		else { return $comp;
-		}
-	}
-	/*														da fare
-	public function groups($gr = null, $new = false) {
-		try {
-			if (isset($gr)) {
-				if (!is_array($gr)) {
-					throw new Exception('Invalid argument');
-				}
-				foreach($gr as $name => $def) {
-					try {
-						if (!$this->check_group($def)) {
-							throw new Exception('Invalid group '.$name);
-						}
-						$this->new_entity_object(__FUNCTION__, $name, $def, $new);
-					} catch(Exception $e) {
-						$this->error_out($e);
-					}
-				}
-			}
-		} catch(Exception $e) {
-			$this->error_out($e);
-		}
-		return $this->_structure['groups'];
-	}
-	public function get_groups($name = null) {
-		return $this->entity_objects(substr(__FUNCTION__, 4), $name);
-	}
-	public function substitution_mappings($sm = null, $new = false) {
-		if (isset($sm)) {
-			$this->new_entity_object(__FUNCTION__, null, $sm, $new);
-		}
-		return $this->_structure['substitution_mappings'];
-	}
-	public function get_substitution_mappings() {
-		return $this->entity_objects(substr(__FUNCTION__, 4));
-	}
-	public function delete($entity, $todel = null) {
-		switch ($entity) {
-			case 'description':
-			case 'substitution_mappings':
-				$this->single_entity_delete($entity);
-				break;
-			case 'inputs':
-			case 'outputs':
-			case 'node_templates':
-			case 'groups':
-				$this->list_delete($entity, $todel);
-				break;
-		}
-	}
-	*/
 }
 ?>
