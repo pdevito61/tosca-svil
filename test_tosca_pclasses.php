@@ -50,7 +50,7 @@ $st = new tosca_service_template();
 			$ip->keys(array('value' => 4, 'required' => false, 'default' => 2, 'status' => 'my status', 'constraints' => [operator::in_range(1,4), operator::equal(2)]));
 		$tt->inputs(array('number_of_cpu' => $ip));
 
-			$cap = new tosca_capability();
+			$cap = new tosca_capability('tosca.capabilities.nfv.HA');
 				$cap->properties(array('component_version' => 'version 0.1', 'admin_credential' => 'my credential'));
 				$cap->attributes(array('tosca_id' => '0003', 'tosca_name' => 'vdu'));
 
@@ -94,11 +94,11 @@ $st = new tosca_service_template();
 		$gr1 = new tosca_group('tosca.groups.nfv.vnffg');
 			$gr1->description('Example of group 1');
 			$gr1->properties(array('vendor' => 'Pinco pallino SPA', 'number_of_endpoints' => 2, 'dependent_virtual_link' => array('VL1','VL2','VL4')));
-			$gr1->targets(array('VDU1','VDU1','VDU1'));
+			$gr1->members(array('VDU1','VDU1','VDU1'));
 		$gr2 = new tosca_group('tosca.groups.nfv.vnffg');
 			$gr2->description('Example of group 1');
 			$gr2->properties(array('vendor' => 'Pinco pallino SPA', 'number_of_endpoints' => 2, 'dependent_virtual_link' => array('VL1','VL2','VL4')));
-			$gr2->targets(array('VDU1','VDU1'));
+			$gr2->members(array('VDU1','VDU1'));
 			
 		$tt->groups(array('VNFFG1' => $gr1, 'VNFFG2' => $gr2));
 
@@ -137,6 +137,6 @@ $opp = $ifp->get_operations('configure');
 
 echo "\n\nPARSED ENTITIES: \n\n";
 echo $stp->yaml();
-// print_r($rqp);
+print_r($ntp);
 // $stp->get();
 ?>

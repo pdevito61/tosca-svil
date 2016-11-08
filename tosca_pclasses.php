@@ -891,7 +891,7 @@ class tosca_parameter extends tosca_component {   			//OK
 class tosca_capability  extends  tosca_component { 			//OK
 	function __construct($type_name = null, $struct = null) {
 		if (isset($type_name)) {
-			parent::__construct($type_name, true);
+			parent::__construct($type_name, false);
 		}
 		else {
 			$this->set($struct);
@@ -1144,7 +1144,7 @@ class tosca_requirement extends tosca_composite {   		//OK
 						$this->description($value);
 						break;
 					case 'node':
-					case 'relationship':
+					case 'relationship':						// no extended grammar with with Property Assignments for the relationship’s Interfaces
 					case 'capability':
 						$this->keys(array($key => $value));
 						break;
@@ -1225,7 +1225,7 @@ class tosca_node_template  extends  tosca_composite { 		//OK
 					case 'properties':
 						$this->properties($value);
 						break;
-					case 'attributes':
+					case 'attributes':							// only short notation is mapped: <attribute_name>: <attribute_value> | { <attribute_value_expression> }
 						$this->attributes($value);
 						break;
 					case 'artifacts':
@@ -1238,7 +1238,7 @@ class tosca_node_template  extends  tosca_composite { 		//OK
 							$this->capabilities([$name => new tosca_capability(null, $parameter)]);
 						}
 						break;
-					case 'requirements':
+					case 'requirements':					// only extended notation in mapped
 						foreach ($value as $req) {
 							foreach($req as $name => $parameter) {
 							//print_r($req);
@@ -1251,8 +1251,9 @@ class tosca_node_template  extends  tosca_composite { 		//OK
 							$this->interfaces([$name => new tosca_interface(null, $parameter)]);
 						}
 						break;
-/*
+/*														// entities not mapped
 					case 'node_filter':
+					case 'metadata':
 					case 'directives':
 					case 'copy':
 						break;
@@ -1298,15 +1299,6 @@ class tosca_node_template  extends  tosca_composite { 		//OK
 	public function get_requirements($name = null) {
 		return $this->get_collection(substr(__FUNCTION__, 4), $name);
 	}
-	public function node_filter($nf = null) {
-		if (is_object($nf)) { 
-			$this->add([__FUNCTION__ => $nf]);
-		}
-		return $this;
-	}
-	public function get_node_filter() { 
-		return $this->get_child(substr(__FUNCTION__, 4));
-	}
 	public function delete($entity, $todel = null) {
 		switch ($entity) {
 			case 'description':
@@ -1347,7 +1339,7 @@ class tosca_interface  extends  tosca_composite { 	 		//OK
 					case 'inputs':
 						$this->inputs($value);
 						break;
-					default:
+					default:								// only extended notation for operations is mapped
 						$this->operations([$key => new tosca_operation(null, $value)]);
 						break;
 				}
@@ -1404,9 +1396,13 @@ class tosca_group extends tosca_composite { 	 			//OK
 					case 'properties':
 						$this->properties($value);
 						break;
-					case 'targets':
-						$this->targets($value);
+					case 'targets':					// not supported in TOSCA Simple Profile in YAML Version 1.1
+					case 'members':
+						$this->members($value);
 						break;
+/*											// entities not mapped
+					case 'metadata':
+*/						
 				}
 			}
 		}
@@ -1423,7 +1419,7 @@ class tosca_group extends tosca_composite { 	 			//OK
 	public function get_interfaces($name = null) {
 		return $this->get_collection(substr(__FUNCTION__, 4), $name);
 	}
-	public function targets($entities = null) {
+	public function members($entities = null) {
 		if (isset($entities) ) $this->mapping(__FUNCTION__, $entities);
 		return $this;
 	}
