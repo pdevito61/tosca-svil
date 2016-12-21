@@ -116,32 +116,32 @@ class tosca_definitions {					// design pattern : singleton
 	}
 }
 class tosca_type {							// design pattern : strategy
-	private $_type_name;
+	private $_type_name = null;
 	
 	function __construct($type_name) {
-		try {
+		// try {
 			if(!isset($type_name)) {
 				throw new Exception('Missing argument: Type name is mandatory');
 			}
 			$this->set_type($type_name);
-		} catch(Exception $e) {
-			echo $e."\n\n";
-		}
+		// } catch(Exception $e) {
+			// echo $e."\n\n";
+		// }
 	}
 	private function set_type($typename) {
-		try {
+		// try {
 			if (isset($typename)) {
 				if (!tosca_definitions::get_definitions()->check_type($typename)) {
-					throw new Exception('Invalid argument: typename '.$typename);
+					throw new Exception('Invalid argument: typename '.$typename.' is not a valid type name');
 				}
 				$this->_type_name = $typename;
 			}
 			else {
 				throw new Exception('Missing argument: typename is mandatory');
 			}
-		} catch(Exception $e) {
-			echo $e."\n\n";
-		}
+		// } catch(Exception $e) {
+			// echo $e."\n\n";
+		// }
 	}
 	private function check_name($attr_name, $attr_type, $type_to_check = null) {
 		// check for attribute type
@@ -397,16 +397,19 @@ interface tosca_component_interface {													// design pattern : composite
 }
 class tosca_component implements tosca_component_interface {							// design pattern : composite
 	protected $_structure = array();		// internal attribute for tosca entities in multidimentional-array format
-	protected $_type;  						// internal type --> a reference to tosca_type object
+	protected $_type = null;  				// internal type --> a reference to tosca_type object
 
 	function __construct($type_name = null, $clear = true) {
 		if(isset($type_name)) {
-			$this->_type = new tosca_type($type_name);
-			if ($clear) $this->_structure['type'] = $type_name;
+			$this->set_type($type_name, $clear);
 		}
 	}
 	protected function error_out($e) {
 		echo $e."\n\n";
+	}
+	protected function set_type($type_name, $clear = false) {
+		$this->_type = new tosca_type($type_name);
+		if ($clear) $this->simple_string('type', $type_name);
 	}
 	protected function simple_string($e_type, $str_value) {
 		try {
@@ -606,6 +609,9 @@ class tosca_component implements tosca_component_interface {							// design pat
 	public function has_type() {
 		return ($this->_type !== null);
 	}
+	public function type() {
+		return $this->_type->type_name();
+	}
 	public function is_composite() { 
 		return false;
 	}
@@ -617,9 +623,9 @@ class tosca_component implements tosca_component_interface {							// design pat
 			if (isset($this->_structure[$e_type])) return $this->_structure[$e_type];
 		}
 	}
-	public function add($entities) {  			// da fare
+	public function add($entities) {  				// da fare
 	}
-	public function delete_childs($todel) {  			// da fare
+	public function delete_childs($todel) {  		// da fare
 	}
 	public function get_child($toget) {  			// da fare
 	}
@@ -777,7 +783,7 @@ class tosca_substitution_mapping extends tosca_component {  //OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'node_type': 
-						$this->simple_string($key, $value);
+						$this->node_type($value);
 						break;
 					case 'description':
 						$this->description($value);
@@ -831,7 +837,7 @@ class tosca_parameter extends tosca_component {   			//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type':
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, true);
 						break;
 					case 'description':
 						$this->description($value);
@@ -902,7 +908,7 @@ class tosca_capability  extends  tosca_component { 			//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type':
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, true);
 						break;
 					case 'properties':
 						$this->properties($value);
@@ -946,7 +952,7 @@ class tosca_artifact extends tosca_component { 				//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type': 
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, true);
 						break;
 					case 'description': 
 						$this->description($value);
@@ -1217,7 +1223,7 @@ class tosca_node_template  extends  tosca_composite { 		//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type': 
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, true);
 						break;
 					case 'description':
 						$this->description($value);
@@ -1334,7 +1340,7 @@ class tosca_interface  extends  tosca_composite { 	 		//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type':
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, false);
 						break;
 					case 'inputs':
 						$this->inputs($value);
@@ -1383,7 +1389,7 @@ class tosca_group extends tosca_composite { 	 			//OK
 			foreach($struct as $key => $value) {
 				switch ($key) {
 					case 'type': 
-						$this->_type = new tosca_type($value);
+						$this->set_type($value, true);
 						break;
 					case 'description':
 						$this->description($value);
@@ -1443,9 +1449,9 @@ class tosca_topology_template extends tosca_composite{   	//OK
 		if (isset($struct)) $this->set($struct);
 	}
 	private function check_group($gr_def) { 
-		if (!array_key_exists('targets', $gr_def)) return false;  // targets is mandatory
+		if (!array_key_exists('members', $gr_def)) return false;  // members is mandatory
 		$check = true;
-		foreach ($gr_def['targets'] as $gr_member) {
+		foreach ($gr_def['members'] as $gr_member) {
 			if (!array_key_exists($gr_member, $this->get_node_templates()->get())) {
 				$check = false;
 				break;
@@ -1532,7 +1538,7 @@ class tosca_topology_template extends tosca_composite{   	//OK
 				}
 				foreach($entities as $name => $def) {
 					if (!$this->check_group($def->get())) {
-						throw new Exception('Invalid argument: in group '.$name.': entity targets is mandatory and his members must be node templates defined within this same Topology Template');
+						throw new Exception('Invalid argument: in group '.$name.': members is mandatory and his items must be node templates defined within this same Topology Template');
 					}
 				}
 				$this->collection(__FUNCTION__, $entities);

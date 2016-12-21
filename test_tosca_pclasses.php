@@ -32,6 +32,8 @@ header('Content-Type: application/json');
 // print_r($st->get());
 // echo $st->yaml();
 
+try {
+
 $st = new tosca_service_template();
 	$st->tosca_definitions_version('tosca_simple_profile_for_nfv_1_0_0')
 	->description('Example of service template for tosca classes 5.0')
@@ -118,10 +120,21 @@ $st = new tosca_service_template();
 		
 	$st->topology_template($tt);
 
+
+} catch(Exception $e) {
+	echo $e."\n\n";
+}
+
+
 echo $st->yaml();
+
+
 // print_r($st->get());
 // print_r($st);
 
+// $jst = json_encode($st->get());
+// print_r(json_decode($jst, true));
+// $stp = new tosca_service_template(json_decode($jst, true));
 
 $stp = new tosca_service_template($st->get());
 $ttp = $stp->get_topology_template();
@@ -137,6 +150,7 @@ $opp = $ifp->get_operations('configure');
 
 echo "\n\nPARSED ENTITIES: \n\n";
 echo $stp->yaml();
-print_r($ntp);
+// print_r($ntp);
 // $stp->get();
+
 ?>
